@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const status = isFull ? "full" : "available";
 
         const participantsList = details.participants.length > 0
-          ? `<ul>${details.participants.map(p => `<li>${p}</li>`).join('')}</ul>`
+          ? `<ul>${details.participants.map(p => `<li><span class="participant-email">${p}</span><button class="delete-btn" data-email="${p}" data-activity="${name}" title="Remove participant">✕</button></li>`).join('')}</ul>`
           : '<p><em>No participants yet</em></p>';
 
         const participantsId = `participants-${name.replace(/\s+/g, "-")}`;
@@ -56,6 +56,33 @@ document.addEventListener("DOMContentLoaded", () => {
         toggleBtn.addEventListener("click", () => {
           participantsList_el.classList.toggle("collapsed");
           toggleBtn.classList.toggle("active");
+        });
+
+        // Add delete functionality for participants
+        const deleteButtons = activityCard.querySelectorAll(".delete-btn");
+        deleteButtons.forEach(btn => {
+          btn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            const email = btn.dataset.email;
+            const activity = btn.dataset.activity;
+            
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
+                { method: "POST" }
+              );
+              
+              if (response.ok) {
+                fetchActivities(); // Refresh activities after unregister
+              } else {
+                const result = await response.json();
+                alert(result.detail || "Failed to remove participant");
+              }
+            } catch (error) {
+              alert("Failed to remove participant");
+              console.error("Error removing participant:", error);
+            }
+          });
         });
 
         // Add option to select dropdown
