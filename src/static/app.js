@@ -3,12 +3,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  
+  let allActivities = {}; // Store all activities for filtering
 
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
       const response = await fetch("/activities");
       const activities = await response.json();
+      allActivities = activities;
 
       // Clear loading message
       activitiesList.innerHTML = "";
@@ -19,15 +22,68 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        const isFull = spotsLeft === 0;
+        const status = isFull ? "full" : "available";
+
+        const participantsList = details.participants.length > 0
+          ? `<ul>${details.participants.map(p => `<li><span class="participant-email">${p}</span><button class="delete-btn" data-email="${p}" data-activity="${name}" title="Remove participant">✕</button></li>`).join('')}</ul>`
+          : '<p><em>No participants yet</em></p>';
+
+        const participantsId = `participants-${name.replace(/\s+/g, "-")}`;
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
+          <h4>${name} <span class="status-badge ${status}">${status}</span></h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <button class="participants-toggle" data-target="${participantsId}">
+              <strong>Participants (${details.participants.length}/${details.max_participants})</strong>
+              <span class="toggle-icon">▼</span>
+            </button>
+            <div id="${participantsId}" class="participants-list">
+              ${participantsList}
+            </div>
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
+
+        // Add expand/collapse functionality
+        const toggleBtn = activityCard.querySelector(".participants-toggle");
+        const participantsList_el = activityCard.querySelector(`#${participantsId}`);
+        
+        toggleBtn.addEventListener("click", () => {
+          participantsList_el.classList.toggle("collapsed");
+          toggleBtn.classList.toggle("active");
+        });
+
+        // Add delete functionality for participants
+        const deleteButtons = activityCard.querySelectorAll(".delete-btn");
+        deleteButtons.forEach(btn => {
+          btn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            const email = btn.dataset.email;
+            const activity = btn.dataset.activity;
+            
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
+                { method: "POST" }
+              );
+              
+              if (response.ok) {
+                fetchActivities(); // Refresh activities after unregister
+              } else {
+                const result = await response.json();
+                alert(result.detail || "Failed to remove participant");
+              }
+            } catch (error) {
+              alert("Failed to remove participant");
+              console.error("Error removing participant:", error);
+            }
+          });
+        });
 
         // Add option to select dropdown
         const option = document.createElement("option");
@@ -62,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Refresh activities after signup
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
